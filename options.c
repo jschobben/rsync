@@ -2318,7 +2318,7 @@ int parse_arguments(int *argc_p, const char ***argv_p)
 	 * only on the receiving side, with fake-super enabled there. */
 	if (dest_chmod_modes && (am_root != -1 || am_sender)) {
 		snprintf(err_buf, sizeof err_buf,
-			 "--chmod-dest requires --fake-super on the receiving side\\n");
+			 "--chmod-dest requires --fake-super on the receiving side\n");
 		goto cleanup;
 	}
 
