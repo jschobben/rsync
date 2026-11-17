@@ -1742,13 +1742,30 @@ sign) if you want the local shell to expand it.
     to the permissions of the destination file on disk. The syntax is identical
     to the [`--chmod`](#opt) option.
 
-    This option is used with the [`--fake-super`](#opt) option to apply the
-    original source permissions to the fake super attributes, while applying
-    different permissions to the destination file.
+    This option requires [`--fake-super`](#opt) to be enabled on the
+    receiving side. It preserves the incoming file's original permissions in
+    the fake-super `%stat` extended attribute, while applying the specified
+    permissions to the actual destination file. Using this option without
+    receiver-side `--fake-super` is an error.
 
-    When the destination file is being used as a backup, this allows permissions
-    to be applied to the backup independent of the permissions of the source
-    file being backed up.
+    When using a remote-shell connection, this is a receiver-side option and
+    must be sent using [`--remote-option`](#opt) (`-M`). For example:
+
+    >     rsync -a -M--fake-super -M--chmod-dest=F600,D700 /src/ host:/backup/
+
+    The sender does not need to support `--chmod-dest`; only the receiving
+    rsync needs a version that supports it. The receiving side stores the
+    original source permissions in fake-super metadata while the files and
+    directories on disk have modes `0600` and `0700`, respectively.
+
+    To restore the original permissions later, run rsync with
+    `--fake-super` on the sending side:
+
+    >     rsync -a --numeric-ids --fake-super host:/backup/ /restore/
+
+    This is useful when the destination is a backup that must not expose the
+    source files' original permissions, but must retain enough metadata for a
+    later rsync run with `--fake-super` on the sending side to restore them.
 
 0.  `--owner`, `-o`
 

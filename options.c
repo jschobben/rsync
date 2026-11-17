@@ -2313,6 +2313,15 @@ int parse_arguments(int *argc_p, const char ***argv_p)
 	}
 #endif
 
+	/* --chmod-dest changes the real destination mode while --fake-super
+	 * preserves the incoming mode in the %stat xattr.  It is meaningful
+	 * only on the receiving side, with fake-super enabled there. */
+	if (dest_chmod_modes && (am_root != -1 || am_sender)) {
+		snprintf(err_buf, sizeof err_buf,
+			 "--chmod-dest requires --fake-super on the receiving side\\n");
+		goto cleanup;
+	}
+
 	if (write_batch && read_batch) {
 		snprintf(err_buf, sizeof err_buf,
 			"--write-batch and --read-batch can not be used together\n");

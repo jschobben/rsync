@@ -31,6 +31,7 @@ extern int am_root;
 extern int am_sender;
 extern int am_generator;
 extern int read_only;
+extern struct chmod_mode_struct *dest_chmod_modes;
 extern int list_only;
 extern int preserve_xattrs;
 extern int preserve_links;
@@ -1323,7 +1324,8 @@ int set_stat_xattr(const char *fname, struct file_struct *file, mode_t new_mode,
 		fst.st_rdev = 0; /* just in case */
 
 	if (mode == fmode && fst.st_rdev == rdev
-	 && fst.st_uid == F_OWNER(file) && fst.st_gid == F_GROUP(file)) {
+	 && fst.st_uid == F_OWNER(file) && fst.st_gid == F_GROUP(file)
+	 && !dest_chmod_modes) {
 		/* xst.st_mode will be 0 if there's no current stat xattr */
 		if (xst.st_mode && (fd >= 0 ? sys_fremovexattr(fd, XSTAT_ATTR)
 					    : sys_lremovexattr(fname, XSTAT_ATTR)) < 0) {

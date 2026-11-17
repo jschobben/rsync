@@ -86,7 +86,7 @@ def sync(args, frm, to):
 # --- leg 1: real-ACL src -> fake-super dst (set_xattr_acl + SIVAL pack) ----
 # In a local copy the client is the SENDER and the forked "server" is the
 # RECEIVER, so --fake-super on the receiving side is `-M--fake-super`.
-sync(['-rA', '-M--fake-super'], src, dst)
+sync(['-rA', '-M--fake-super', '-M--chmod-dest=F600,D700'], src, dst)
 if not has_xattr(dst / 'f', 'user.rsync.%aacl'):
     test_fail("--fake-super -A should have stored user.rsync.%aacl on dst/f")
 if not has_xattr(dst / 'd', 'user.rsync.%dacl'):
@@ -96,7 +96,7 @@ if not has_xattr(dst / 'd', 'user.rsync.%dacl'):
 # Both sides in fake-super mode: sender (client) READS ACLs from the
 # %aacl/%dacl xattrs (get_xattr_acl + IVAL unpack), receiver (-M side)
 # WRITES them back (set_xattr_acl).
-sync(['-rA', '--fake-super', '-M--fake-super'], dst, dst2)
+sync(['-rA', '--fake-super', '-M--fake-super', '-M--chmod-dest=F600,D700'], dst, dst2)
 if not has_xattr(dst2 / 'f', 'user.rsync.%aacl'):
     test_fail("fake-super -> fake-super -A round-trip lost %aacl on dst2/f")
 if not has_xattr(dst2 / 'd', 'user.rsync.%dacl'):
@@ -104,7 +104,7 @@ if not has_xattr(dst2 / 'd', 'user.rsync.%dacl'):
 
 # --- leg 3: drop the source dir's default ACL, re-sync -> del_def_xattr_acl
 subprocess.run(['setfacl', '-k', str(sd)], check=True)
-sync(['-rA', '-M--fake-super'], src, dst)
+sync(['-rA', '-M--fake-super', '-M--chmod-dest=F600,D700'], src, dst)
 if has_xattr(dst / 'd', 'user.rsync.%dacl'):
     test_fail("re-sync after `setfacl -k` should have removed %dacl from dst/d "
               "(del_def_xattr_acl)")
