@@ -61,7 +61,7 @@ def run(args, frm, to, *, ok=True):
     return proc
 
 
-def stored_mode(path):
+def stored_metadata(path):
     try:
         value = os.getxattr(path, stat_attr, follow_symlinks=False)
     except OSError as e:
@@ -69,7 +69,10 @@ def stored_mode(path):
             test_fail(f"could not check fake-super xattr on {name}: {e}")
         test_fail(f"missing fake-super %stat xattr on {path}: {e}")
     try:
-        return int(value.split()[0], 8) & 0o7777
+        fields = value.split()
+        mode = int(fields[0], 8) & 0o7777
+        uid, gid = (int(part) for part in fields[2].split(':'))
+        return mode, uid, gid
     except (ValueError, IndexError):
         test_fail(f"malformed fake-super %stat xattr on {path}: {value!r}")
 
@@ -82,9 +85,13 @@ def check_destination():
         actual = stat.S_IMODE(st.st_mode)
         if actual != expected:
             test_fail(f"{name}: destination mode {actual:04o}, expected {expected:04o}")
-        saved = stored_mode(path)
-        if saved != original_mode:
-            test_fail(f"{name}: saved mode {saved:04o}, expected {original_mode:04o}")
+        saved_mode, saved_uid, saved_gid = stored_metadata(path)
+        if saved_mode != original_mode:
+            test_fail(f"{name}: saved mode {saved_mode:04o}, expected {original_mode:04o}")
+        source_stat = os.stat(src / name)
+        if (saved_uid, saved_gid) != (source_stat.st_uid, source_stat.st_gid):
+            test_fail(f"{name}: saved uid/gid {(saved_uid, saved_gid)} do not match "
+                      f"source {(source_stat.st_uid, source_stat.st_gid)}")
         if (st.st_uid, st.st_gid) != (os.getuid(), os.getgid()):
             test_fail(f"{name}: destination ownership changed unexpectedly")
 
@@ -98,6 +105,13 @@ if '--fake-super' not in proc.stderr:
 # after all receiver options have been parsed.
 run(['-a', '--numeric-ids',
      '--chmod-dest=F600,D700', '--fake-super'], src, dst)
+check_destination()
+
+# Existing destination mode drift must be corrected even though the fake-super
+# xattr still describes the unchanged source mode.
+os.chmod(dst / 'plain', 0o777)
+run(['-a', '--numeric-ids',
+     '-M--chmod-dest=F600,D700', '-M--fake-super'], src, dst)
 check_destination()
 
 # The sender must remain untouched: fake-super metadata belongs only on dst.
