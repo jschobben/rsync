@@ -804,8 +804,13 @@ int set_file_attrs(const char *fname, struct file_struct *file, stat_x *sxp,
 	}
 #endif
 
-	if (dest_chmod_modes)
+	if (dest_chmod_modes) {
+		rprintf(FINFO, "DEBUG chmod-dest: %s dest_chmod_modes=%p am_root=%d am_sender=%d mode=%04o\n",
+				fname, (void *)dest_chmod_modes, am_root, am_sender, (unsigned)new_mode);
 		new_mode = tweak_mode(new_mode, dest_chmod_modes);
+		rprintf(FINFO, "DEBUG: chmod-dest result for %s, mode %o\n",
+				fname, (unsigned)new_mode);
+	}
 
 #ifdef HAVE_CHMOD
 	if (dest_chmod_modes || !BITS_EQUAL(sxp->st.st_mode, new_mode, CHMOD_BITS)) {
@@ -814,6 +819,7 @@ int set_file_attrs(const char *fname, struct file_struct *file, stat_x *sxp,
 			: op_refuse ? (errno = ELOOP, -1)
 			: dfd >= 0 && !S_ISLNK(new_mode) ? do_chmod_atfd(dfd, leaf, new_mode)
 			: do_chmod_at(fname, new_mode);
+		//rprintf(FINFO, "DEBUG chmod-dest: chmod %s to %04o returned %d\n", fname, (unsigned)new_mode, ret);
 		if (ret < 0) {
 			rsyserr(FERROR_XFER, errno,
 				"failed to set permissions on %s",
@@ -824,6 +830,15 @@ int set_file_attrs(const char *fname, struct file_struct *file, stat_x *sxp,
 			updated |= UPDATED_MODE;
 	}
 #endif
+	if (dest_chmod_modes) {
+	    STRUCT_STAT st;
+	    if (do_stat(fname, &st) == 0)
+	        rprintf(FINFO, "DEBUG chmod-dest: actual %s mode %04o\n",
+	                fname, (unsigned)(st.st_mode & CHMOD_BITS));
+	    else
+	        rprintf(FINFO, "DEBUG chmod-dest: stat %s failed: %s\n",
+	                fname, strerror(errno));
+	}
 
 	if (INFO_GTE(NAME, 2) && flags & ATTRS_REPORT) {
 		if (updated)
