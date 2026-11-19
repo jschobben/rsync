@@ -9,6 +9,7 @@ fake-super send.  The source must not acquire rsync metadata xattrs.
 import errno
 import os
 import platform
+import shlex
 import stat
 import subprocess
 
@@ -50,11 +51,29 @@ for name, mode in modes.items():
 stat_attr = 'user.' + RSYNC_PREFIX + '.%stat'
 
 
-def run(args, frm, to, *, ok=True):
+def make_local_fake_super_rsh():
+    wrapper = SCRATCHDIR / 'local-fake-super-rsh'
+    rsync = rsync_argv()[0]
+    wrapper.write_text("""#!/bin/sh
+rsync=$1
+shift
+shift
+shift
+exec "$rsync" --fake-super "$@"
+""")
+    wrapper.chmod(0o755)
+    return wrapper
+
+
+def run(args, frm, to, *, ok=True, env=None):
     proc = subprocess.run(
         rsync_argv(*args, f'{frm}/', f'{to}/'),
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
+        env=env,
     )
+    print("RSYNC DEBUG STDOUT:\n", proc.stdout)
+    print("RSYNC DEBUG STDERR:\n", proc.stderr)
     if ok and proc.returncode != 0:
         test_fail(f"rsync {' '.join(args)} failed (rc={proc.returncode}):\n{proc.stderr}")
     if not ok and proc.returncode == 0:
@@ -64,7 +83,7 @@ def run(args, frm, to, *, ok=True):
 
 def stored_metadata(path):
     try:
-        value = os.getxattr(path, stat_attr, follow_symlinks=False)
+        value = os.getxattr(path, stat_attr, follow_symlinks=False).decode('ascii')
     except OSError as e:
         if e.errno != errno.ENODATA:
             test_fail(f"could not check fake-super xattr on {name}: {e}")
@@ -135,9 +154,26 @@ run(['-a', '--numeric-ids',
      '-M--chmod-dest=F600,D700', '-M--fake-super'], src, dst)
 check_destination()
 
+
 # Re-run from the fake-super backup as sender.  This must reconstruct the
 # original modes even though the on-disk backup modes are restrictive.
-run(['-a', '--numeric-ids', '--fake-super'], dst, restored)
+rsh = make_local_fake_super_rsh()
+env = os.environ.copy()
+env['RSYNC_RSH'] = f'{shlex.quote(str(rsh))} {shlex.quote(rsync_argv()[0])}'
+run(
+    ['-a', '--numeric-ids'],
+    'localhost:' + str(dst) + '/',
+    str(restored) + '/',
+    env=env,
+)
+#print("restore args:", args)
+print("restored setuid stat:", oct(os.stat(restored / "setuid").st_mode))
+print("restored setuid xattrs:", os.listxattr(restored / "setuid"))
+mode = stat.S_IMODE(os.stat(restored / 'setuid').st_mode)
+if mode != 0o4755:
+    fail(f'restored setuid: mode {mode:04o}, expected 4755')
+if 'user.rsync.%stat' in os.listxattr(restored / 'setuid'):
+    fail('restored setuid still has fake-super metadata')
 for name, original_mode in modes.items():
     actual = stat.S_IMODE(os.lstat(restored / name).st_mode)
     if actual != original_mode:
