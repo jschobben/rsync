@@ -6,6 +6,7 @@ modes remain in the fake-super %stat xattr and can be restored by a later
 fake-super send.  The source must not acquire rsync metadata xattrs.
 """
 
+import errno
 import os
 import platform
 import stat
@@ -97,14 +98,14 @@ def check_destination():
 
 
 # Without fake-super on the receiving side, --chmod-dest must be rejected.
-proc = run(['-a', '--chmod-dest=F600,D700'], src, bad, ok=False)
+proc = run(['-a', '-M--chmod-dest=F600,D700'], src, bad, ok=False)
 if '--fake-super' not in proc.stderr:
     test_fail(f"missing --fake-super diagnostic: {proc.stderr!r}")
 
 # Put --chmod-dest before --fake-super to verify that validation happens
 # after all receiver options have been parsed.
 run(['-a', '--numeric-ids',
-     '--chmod-dest=F600,D700', '--fake-super'], src, dst)
+     '-M--chmod-dest=F600,D700', '-M--fake-super'], src, dst)
 check_destination()
 
 # Existing destination mode drift must be corrected even though the fake-super
@@ -131,7 +132,7 @@ os.chmod(src / 'plain', 0o640)
 os.utime(src / 'plain', ns=(old_mtime, old_mtime))
 modes['plain'] = 0o640
 run(['-a', '--numeric-ids',
-     '--chmod-dest=F600,D700', '--fake-super'], src, dst)
+     '-M--chmod-dest=F600,D700', '-M--fake-super'], src, dst)
 check_destination()
 
 # Re-run from the fake-super backup as sender.  This must reconstruct the
