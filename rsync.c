@@ -808,7 +808,7 @@ int set_file_attrs(const char *fname, struct file_struct *file, stat_x *sxp,
 		new_mode = tweak_mode(new_mode, dest_chmod_modes);
 
 #ifdef HAVE_CHMOD
-	if (!BITS_EQUAL(sxp->st.st_mode, new_mode, CHMOD_BITS)) {
+	if (dest_chmod_modes || !BITS_EQUAL(sxp->st.st_mode, new_mode, CHMOD_BITS)) {
 		int ret = am_root < 0 && !dest_chmod_modes ? 0
 			: op_leaf_fd >= 0 ? do_fchmod(op_leaf_fd, new_mode)
 			: op_refuse ? (errno = ELOOP, -1)
